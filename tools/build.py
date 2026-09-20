@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Build the recipe site using only the publishable recipe files."""
+"""Build the site using only the publishable recipes and saved weekly menus."""
 
 import html
 import re
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -14,6 +15,7 @@ from markdown.treeprocessors import Treeprocessor
 
 ROOT = Path(__file__).resolve().parent.parent
 RECIPES = ROOT / "recetas"
+WEEKS = ROOT / "semanas"
 OUTPUT = ROOT / "docs"
 ORDER = ["R13", "R15", "R16", "R17", "R14", "R04", "A04"]
 
@@ -50,6 +52,31 @@ def read_recipe(path):
     return {"path": path, "data": data, "body": body}
 
 
+def read_week(path):
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", path.stem):
+        raise ValueError(f"{path.name}: el nombre debe ser una fecha ISO (AAAA-MM-DD).")
+    date.fromisoformat(path.stem)
+    source = path.read_text(encoding="utf-8")
+    match = re.fullmatch(r"---\r?\n(.*?)\r?\n---\r?\n(.*)", source, re.DOTALL)
+    if not match:
+        raise ValueError(f"{path.name}: falta la cabecera YAML.")
+    data = yaml.safe_load(match.group(1))
+    body = match.group(2).strip()
+    if not isinstance(data, dict) or not body:
+        raise ValueError(f"{path.name}: el menú está vacío o no es válido.")
+    for key in ("titulo", "estado"):
+        if not isinstance(data.get(key), str) or not data[key].strip():
+            raise ValueError(f"{path.name}: falta el campo {key}.")
+    for key in ("inicio", "fin"):
+        try:
+            data[key] = date.fromisoformat(str(data.get(key, "")))
+        except ValueError as error:
+            raise ValueError(f"{path.name}: {key} debe ser una fecha ISO.") from error
+    if data["fin"] < data["inicio"]:
+        raise ValueError(f"{path.name}: fin no puede ser anterior a inicio.")
+    return {"path": path, "data": data, "body": body}
+
+
 class RecipeLinks(Treeprocessor):
     def run(self, root):
         for link in root.iter("a"):
@@ -64,28 +91,34 @@ class RecipeLinks(Treeprocessor):
                 link.text = "catálogo de combinaciones (próximamente)"
             elif target.path.endswith(".md"):
                 name = Path(target.path).name
-                if target.path not in (name, "./" + name) or name not in self.md.recipe_names:
+                prefix = self.md.recipe_prefix
+                if target.path not in (prefix + name, "./" + prefix + name) or name not in self.md.recipe_names:
                     raise ValueError(f"Enlace local no publicable: {target.path}")
-                link.set("href", urlunsplit(("", "", Path(name).with_suffix(".html").name,
+                link.set("href", urlunsplit(("", "", prefix + Path(name).with_suffix(".html").name,
                                              target.query, target.fragment)))
 
 
 class RecipeLinksExtension(Extension):
-    def __init__(self, recipe_names):
+    def __init__(self, recipe_names, recipe_prefix=""):
         self.recipe_names = recipe_names
+        self.recipe_prefix = recipe_prefix
         super().__init__()
 
     def extendMarkdown(self, md):
         md.recipe_names = self.recipe_names
+        md.recipe_prefix = self.recipe_prefix
         md.treeprocessors.register(RecipeLinks(md), "recipe_links", 15)
 
 
-def render_markdown(source, recipe_names):
-    return markdown.markdown(source, extensions=["tables", RecipeLinksExtension(recipe_names)])
+def render_markdown(source, recipe_names, recipe_prefix=""):
+    return markdown.markdown(source, extensions=["tables", RecipeLinksExtension(recipe_names, recipe_prefix)])
 
 
-def page(title, content, detail=False):
+def page(title, content, detail=False, latest_week=None):
     prefix = "../" if detail else ""
+    week_link = ""
+    if latest_week:
+        week_link = f'<a href="{prefix}semanas/{escape(latest_week["path"].stem)}.html">Esta semana</a>'
     return f'''<!doctype html>
 <html lang="es">
 <head>
@@ -99,7 +132,7 @@ def page(title, content, detail=False):
   <header class="site-header">
     <div class="container header-inner">
       <a class="brand" href="{prefix}index.html">En casa</a>
-      <nav class="site-nav" aria-label="Navegación principal"><a href="{prefix}index.html">Recetas</a></nav>
+      <nav class="site-nav" aria-label="Navegación principal"><a href="{prefix}index.html">Recetas</a>{week_link}</nav>
     </div>
   </header>
   <main class="container{' recipe-page' if detail else ''}">
@@ -140,7 +173,7 @@ def ingredient_notes(ingredient):
     return " ".join(part for part in (reference, note) if part)
 
 
-def recipe_page(recipe, recipe_names):
+def recipe_page(recipe, recipe_names, latest_week=None):
     data = recipe["data"]
     paragraphs = re.split(r"\n\s*\n", recipe["body"], maxsplit=1)
     intro = render_markdown(paragraphs[0], recipe_names)
@@ -168,10 +201,26 @@ def recipe_page(recipe, recipe_names):
       </section>
       <div class="recipe-content">{body}</div>
     </article>'''
-    return page(data["titulo"], content, detail=True)
+    return page(data["titulo"], content, detail=True, latest_week=latest_week)
 
 
-def index_page(recipes):
+def week_page(week, recipe_names, latest_week=None):
+    data = week["data"]
+    body = render_markdown(week["body"], recipe_names, recipe_prefix="../recetas/")
+    content = f'''    <a class="breadcrumb" href="../index.html">← Todas las recetas</a>
+    <article>
+      <header class="recipe-heading">
+        <div class="recipe-meta">{status(data)}</div>
+        <h1>{escape(data["titulo"])}</h1>
+        <p class="week-period">Del {data["inicio"].strftime("%d/%m/%Y")} al {data["fin"].strftime("%d/%m/%Y")}</p>
+        <button class="print-button" type="button" onclick="window.print()">Imprimir menú</button>
+      </header>
+      <div class="recipe-content week-content">{body}</div>
+    </article>'''
+    return page(data["titulo"], content, detail=True, latest_week=latest_week)
+
+
+def index_page(recipes, latest_week=None):
     cards = []
     for recipe in recipes:
         data = recipe["data"]
@@ -180,15 +229,22 @@ def index_page(recipes):
         <h2>{escape(data["titulo"])}</h2>
         <span class="card-link">Ver receta <span aria-hidden="true">→</span></span>
       </a>''')
+    week_banner = ""
+    if latest_week:
+        week_banner = f'''    <a class="week-banner" href="semanas/{escape(latest_week["path"].stem)}.html">
+      <span><span class="eyebrow">Esta semana</span><strong class="week-banner-title">{escape(latest_week["data"]["titulo"])}</strong></span>
+      <span aria-hidden="true">→</span>
+    </a>'''
     content = f'''    <section class="hero">
       <p class="eyebrow">En casa</p>
       <h1>Nuestro recetario</h1>
       <p class="lead">Las recetas que vamos haciendo nuestras. Ya podemos consultarlas mientras completamos cantidades, tiempos y otros detalles.</p>
     </section>
+{week_banner}
     <div class="recipe-grid">
 {chr(10).join(cards)}
     </div>'''
-    return page("Nuestro recetario", content)
+    return page("Nuestro recetario", content, latest_week=latest_week)
 
 
 def main():
@@ -206,17 +262,25 @@ def main():
                                     if recipe["data"]["id"] in ORDER else len(ORDER),
                                     recipe["data"]["titulo"]))
     names = {path.name for path in paths}
+    week_paths = sorted(WEEKS.glob("*.md"))
+    if any(path.is_symlink() for path in week_paths):
+        raise ValueError("Los menús publicables deben ser archivos, no enlaces simbólicos.")
+    weeks = [read_week(path) for path in week_paths]
+    latest_week = weeks[-1] if weeks else None
     # Render and validate all content before writing output.
-    pages = {"index.html": index_page(recipes)}
-    pages.update({f'recetas/{recipe["path"].stem}.html': recipe_page(recipe, names) for recipe in recipes})
+    pages = {"index.html": index_page(recipes, latest_week)}
+    pages.update({f'recetas/{recipe["path"].stem}.html': recipe_page(recipe, names, latest_week) for recipe in recipes})
+    pages.update({f'semanas/{week["path"].stem}.html': week_page(week, names, latest_week) for week in weeks})
     style = (ROOT / "assets" / "style.css").read_text(encoding="utf-8")
     (OUTPUT / "recetas").mkdir(parents=True, exist_ok=True)
     (OUTPUT / "assets").mkdir(parents=True, exist_ok=True)
+    if weeks:
+        (OUTPUT / "semanas").mkdir(parents=True, exist_ok=True)
     for filename, content in pages.items():
         (OUTPUT / filename).write_text(content, encoding="utf-8")
     (OUTPUT / "assets" / "style.css").write_text(style, encoding="utf-8")
     (OUTPUT / ".nojekyll").write_text("", encoding="utf-8")
-    print(f"Generadas {len(recipes)} recetas en {OUTPUT}")
+    print(f"Generadas {len(recipes)} recetas y {len(weeks)} semanas en {OUTPUT}")
 
 
 if __name__ == "__main__":
