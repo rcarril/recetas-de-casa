@@ -67,6 +67,10 @@ def read_week(path):
     for key in ("titulo", "estado"):
         if not isinstance(data.get(key), str) or not data[key].strip():
             raise ValueError(f"{path.name}: falta el campo {key}.")
+    if data["estado"] != "confirmada":
+        raise ValueError(f"{path.name}: solo se admiten semanas confirmadas; las propuestas deben permanecer en privado, fuera del repositorio público.")
+    if not isinstance(data.get("vigente"), bool):
+        raise ValueError(f"{path.name}: vigente debe ser un booleano (true o false).")
     for key in ("inicio", "fin"):
         try:
             data[key] = date.fromisoformat(str(data.get(key, "")))
@@ -145,7 +149,8 @@ def page(title, content, detail=False, latest_week=None):
 
 
 def status(data):
-    label = "En curso" if data["estado"] == "pendiente_de_completar" else data["estado"].replace("_", " ").capitalize()
+    labels = {"pendiente_de_completar": "En curso", "confirmada": "Confirmado"}
+    label = labels.get(data["estado"], data["estado"].replace("_", " ").capitalize())
     return f'<span class="status">{escape(label)}</span>'
 
 
@@ -266,7 +271,10 @@ def main():
     if any(path.is_symlink() for path in week_paths):
         raise ValueError("Los menús publicables deben ser archivos, no enlaces simbólicos.")
     weeks = [read_week(path) for path in week_paths]
-    latest_week = weeks[-1] if weeks else None
+    current_weeks = [week for week in weeks if week["data"]["vigente"]]
+    if len(current_weeks) > 1:
+        raise ValueError("Solo puede haber una semana marcada como vigente.")
+    latest_week = current_weeks[0] if current_weeks else None
     # Render and validate all content before writing output.
     pages = {"index.html": index_page(recipes, latest_week)}
     pages.update({f'recetas/{recipe["path"].stem}.html': recipe_page(recipe, names, latest_week) for recipe in recipes})
@@ -280,6 +288,10 @@ def main():
         (OUTPUT / filename).write_text(content, encoding="utf-8")
     (OUTPUT / "assets" / "style.css").write_text(style, encoding="utf-8")
     (OUTPUT / ".nojekyll").write_text("", encoding="utf-8")
+    # Remove generated weekly pages that no longer have a confirmed source.
+    for path in (OUTPUT / "semanas").glob("*.html"):
+        if path.is_file() and f"semanas/{path.name}" not in pages:
+            path.unlink()
     print(f"Generadas {len(recipes)} recetas y {len(weeks)} semanas en {OUTPUT}")
 
 
