@@ -1,7 +1,7 @@
 ---
 id: R16
 titulo: Lentejas caldosas sin chorizo
-version: 2
+version: 3
 estado: pendiente_de_completar
 raciones_base: null
 tiempo_activo_min: null
@@ -28,10 +28,15 @@ ingredientes:
     unidad: g
     referencia_peso: crudo
   - ingrediente: ajo
-    cantidad: 1
+    cantidad: 0.5
     unidad: unidad
     referencia_peso: crudo
-    nota: Opcional; la fuente no precisa tamaño ni unidad culinaria.
+    nota: Medio diente triturado, opcional; incorporar al sofrito. Sustituye la cantidad de ajo de referencia, no se suma a ella.
+  - ingrediente: tomates cherry
+    cantidad: 5
+    unidad: unidad
+    referencia_peso: crudo
+    nota: Opcionales; incorporar al sofrito de verduras.
   - ingrediente: paprika
     cantidad: 1
     unidad: cucharada
@@ -58,13 +63,13 @@ ingredientes:
     nota: "Alternativa de la fuente: una pastilla. Elegir un formato, sin sumar ambos."
 ---
 
-**Borrador de la versión de casa.** Cambios confirmados: sin chorizo y con 900 ml de agua de cocción para una consistencia más líquida. Las cantidades de sólidos son de referencia; falta confirmar la tanda habitual y otros ajustes. No se incluye chorizo en los ingredientes ni en la compra.
+**Borrador de la versión de casa.** Cambios confirmados: sin chorizo y con 900 ml de agua de cocción para una consistencia más líquida. Se pueden añadir 5 tomates cherry y medio diente de ajo triturado al sofrito. Las demás cantidades de sólidos son de referencia; falta confirmar la tanda habitual y otros ajustes. No se incluye chorizo en los ingredientes ni en la compra.
 
 ## Preparación de referencia, adaptada sin chorizo
 
 1. Dejar las lentejas en remojo al menos dos horas; después enjuagar y escurrir.
 2. Trocear las verduras en el vaso: 5 segundos, velocidad 5.
-3. Incorporar paprika, aceite y laurel. Para TM31: 10 minutos en Varoma, giro inverso, velocidad 1.
+3. Si se eligen los opcionales, añadir los 5 tomates cherry y el medio diente de ajo triturado al sofrito de verduras. Incorporar paprika, aceite y laurel. Para TM31: 10 minutos en Varoma, giro inverso, velocidad 1.
 4. Añadir lentejas, agua y concentrado; cocinar 30 minutos a 100 °C, giro inverso, velocidad 1. Revisar la textura y prolongar si hace falta.
 5. Reposar 10 minutos.
 
@@ -76,6 +81,7 @@ Rendimiento doméstico pendiente. El remojo requiere previsión aparte del traba
 
 - Omitir el chorizo.
 - Preparar más caldosas que la referencia, con 900 ml de agua de cocción en total; no son 900 ml adicionales al agua de la fuente.
+- Opcionales para el sofrito: 5 tomates cherry y medio diente de ajo triturado. El medio diente es la cantidad total de ajo opcional; no añadir además el ajo de referencia. Incluir estos ingredientes en la compra solo cuando se vayan a utilizar.
 - Confirmar si se mantienen el resto de ingredientes y el formato de concentrado usado.
 
 ## Preparación anticipada y aprovechamiento
@@ -97,3 +103,4 @@ Revisar la capacidad del vaso antes de aumentar sólidos o líquido. Los tiempos
 - Base: [Lentejas guisadas con chorizo — Recetario Thermomix Chile](https://www.recetasthermomix.cl/?recipe=lentejas-guisadas-con-chorizo).
 - 2026-09-16: creada la ficha con la adaptación sin chorizo y la preferencia por más caldo; cantidad de agua pendiente.
 - 2026-09-16: confirmados 900 ml de agua de cocción, aparte del remojo; versión 2.
+- 2026-09-24: añadidos tomates cherry opcionales al sofrito y ajustado el ajo opcional a medio diente triturado; versión 3.
